@@ -16,26 +16,6 @@ from watchdog.events import FileSystemEventHandler
 
 colorama_init()
 
-# При компиляции в exe скрипт перестаёт работать, если в пути есть пробелы.
-
-# Избавиться от сворачивания окна при запуске app Siril
-
-# Добавить команду reset, чтобы изменить настройки в %appdata%
-
-# Bias могут быть вычитаны из darks, если нет flat.
-
-# Наблюдался странный оверкоррект, когда всего три flat и три lights
-
-# Файлы, которые не зарегистрированы, не удаляются
-
-# Если lights больше 2048, переход на SER sequence и максимум 8/16 бит (На данный момент не реализуемо)
-# так как даже 2048 файлов занимают ОЧЕНЬ много места
-# также в будущем реализовать обработку планет
-# большое количество файлов может потребоваться для работы с lucky-imaging даже DSO
-# В самом начале запуска скрипт будет спрашивать тип стакинга: DSO, planet, lucky-imaging. Здесь же и можно писать
-# различные debug команды
-
-
 class CleanupHandler(FileSystemEventHandler):
     def __init__(self, directory, alt_prefix):
         self.directory = directory
@@ -97,7 +77,6 @@ def cleanup(directory, prefix):
 
 
 def batch_cleanup(alt_prefix, file_path):
-    # alt-prefix - какой нужно УБРАТЬ из нового файла, чтобы удалить необходимый файл
     directory, filename = os.path.split(file_path)
     new_filename = filename.replace(alt_prefix + '_', '', 1)
     delete_path = os.path.join(directory, new_filename)
