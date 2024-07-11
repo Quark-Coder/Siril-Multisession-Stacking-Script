@@ -10,8 +10,8 @@ The script is still very raw, so be careful,** since its behavior when bugs occu
 Immediately report any bug or idea that you would like to fix or add to this project.
 
 ## Requirements
-colorama==0.4.6
-pysiril==0.0.15
-astropy==6.1.1
-rawpy==0.22.0
-watchdog==4.0.1
+- colorama==0.4.6
+- pysiril==0.0.15
+- astropy==6.1.1
+- rawpy==0.22.0
+- watchdog==4.0.1
