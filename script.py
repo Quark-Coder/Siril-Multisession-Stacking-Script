@@ -48,13 +48,40 @@ def master_flat(cmd, flat_dir, process_dir, use_bias):
     cmd.convert('flat', out=process_dir)
     cmd.cd(process_dir)
     if use_bias:
-        cmd.preprocess('flat', bias='bias_stacked')
+        cmd.calibrate('flat', bias='bias_stacked')
         cmd.stack('pp_flat', type='rej', sigma_low=3, sigma_high=3, norm='mul')
         cleanup(process_dir, 'pp_flat')
     else:
         cmd.stack('flat', type='rej', sigma_low=3, sigma_high=3, norm='mul')
     cleanup(process_dir, 'flat')
 
+
+def display_commands(main=False):
+    if main:
+        print("List of main processing commands:")
+        print("  dso - for deep sky stacking")
+        print(" ")
+    print("Script related commands:")
+    print("  reset - for resetting the settings.")
+    print("  info - how script works.")
+
+
+def handle_command(command, settings_file):
+    if command == 'dso':
+        print(Fore.CYAN + "Deep sky object stacking selected." + Style.RESET_ALL)
+        return True
+    elif command == 'reset':
+        print(Fore.RED + "Resetting all settings..." + Style.RESET_ALL)
+        os.remove(settings_file)
+        os.system("pause")
+        exit()
+    elif command == 'info':
+        print("1. The script creates empty session folders, inside of which are all the frames that you have selected.")
+        print("2. The script calibrates light frames from each session and moves them to the calibrated folder.")
+        print("3. The script performs registration and stacking of calibrated light frames in the calibrated folder.")
+        print("4. The script exports to the main stacked image folder and deletes all temporary files.")
+        print(" ")
+    return False
 
 def master_dark(cmd, dark_dir, process_dir):
     cmd.cd(dark_dir)
@@ -64,11 +91,15 @@ def master_dark(cmd, dark_dir, process_dir):
     cleanup(process_dir, 'dark')
 
 
+def has_spaces(path):
+    return ' ' in path
+
+
 def cleanup(directory, prefix):
     for file in os.listdir(directory):
         if file.startswith(prefix + '_') and not file.startswith(prefix + '_stacked') and (
                 file.endswith('.fit') or file.endswith(
-                '.FIT') or file == prefix + '_.seq' or file == prefix + '_conversion.txt'):
+            '.FIT') or file == prefix + '_.seq' or file == prefix + '_conversion.txt'):
             print(Fore.GREEN + "CLEANING " + file + Style.RESET_ALL)
             os.remove(os.path.join(directory, file))
         if prefix == 'all':
@@ -87,22 +118,30 @@ def batch_cleanup(alt_prefix, file_path):
 
 def setup_directories():
     workdir = os.getcwd()
+
+    if has_spaces(workdir):
+        print(Fore.RED + "Space(-s) were detected in the path to your working directory. Please remove "
+                         "them before using the script.")
+        os.system('pause')
+        exit()
+
     if not os.path.isdir(workdir + "/calibrated"):
         session_count = int(input(Fore.YELLOW + "Enter the number of sessions: " + Style.RESET_ALL))
         use_darks = input(Fore.YELLOW + "Use dark frames? (y/n): " + Style.RESET_ALL).lower() == 'y'
         use_flats = input(Fore.YELLOW + "Use flat frames? (y/n): " + Style.RESET_ALL).lower() == 'y'
         use_bias = input(Fore.YELLOW + "Use bias frames? (y/n): " + Style.RESET_ALL).lower() == 'y'
 
-        for session_num in range(1, session_count + 1):
-            session_dir = os.path.join(workdir, f"session_{session_num}")
-            os.makedirs(session_dir)
-            if use_darks:
-                os.makedirs(os.path.join(session_dir, "darks"))
-            if use_flats:
-                os.makedirs(os.path.join(session_dir, "flats"))
-            if use_bias:
-                os.makedirs(os.path.join(session_dir, "biases"))
-            os.makedirs(os.path.join(session_dir, "lights"))
+        if not os.path.isdir(workdir + "/session_1"):
+            for session_num in range(1, session_count + 1):
+                session_dir = os.path.join(workdir, f"session_{session_num}")
+                os.makedirs(session_dir)
+                if use_darks:
+                    os.makedirs(os.path.join(session_dir, "darks"))
+                if use_flats:
+                    os.makedirs(os.path.join(session_dir, "flats"))
+                if use_bias:
+                    os.makedirs(os.path.join(session_dir, "biases"))
+                os.makedirs(os.path.join(session_dir, "lights"))
         os.makedirs(os.path.join(workdir, "calibrated"))
         print(Fore.RED + "Add files to folders!" + Style.RESET_ALL)
         proceed = input(Fore.YELLOW + "Proceed? (y/n): " + Style.RESET_ALL).lower() == 'y'
@@ -115,7 +154,6 @@ def setup_directories():
 
 has_rgb_images = False
 has_mono_images = False
-
 
 def check_directories(workdir):
     need_exit = False
@@ -196,6 +234,13 @@ def main():
         os.makedirs(dir_path)
 
     settings_file = os.path.join(dir_path, "settings.txt")
+    default_siril_path = "C:\\Program Files\\Siril\\bin\\siril.exe"
+
+    if os.path.isfile(default_siril_path):
+        with open(settings_file, "w", encoding='utf-8') as settings:
+            settings.write(default_siril_path + "\n")
+        os.system('cls')
+
     if not os.path.isfile(settings_file):
         print(
             Fore.RED + "No SiriL.exe found in default location. Select SiriL.exe in installed directory."
@@ -214,15 +259,34 @@ def main():
                 with open(settings_file, "w", encoding='utf-8') as settings:
                     settings.write(path + "\n")
                     settings.write(bits_select + "_bits")
+                os.system('cls')
 
                 break
             else:
                 tkinter.messagebox.showerror(title="Error", message="This is not a Siril.exe or siril.exe")
 
-    print(Fore.BLUE + "Quark-Coder multisession processing script" + Style.RESET_ALL)
+    print(Fore.BLUE + "Quark-Coder multi-session processing script" + Style.RESET_ALL)
     print(Fore.RED + "THIS SCRIPT IS UNDER TESTING. SAVE THE IMAGES BEFORE USING THE SCRIPT!" + Style.RESET_ALL)
+    print(" ")
+
+    command = ""
+    while command not in ['dso', 'reset', 'stack']:
+        if not os.path.isdir(os.path.join(os.getcwd(), "calibrated")):
+            display_commands(main=True)
+        else:
+            display_commands()
+            print("  stack - for stacking")
+
+        print(" ")
+        command = input(Fore.YELLOW + "Write a command: " + Style.RESET_ALL).strip().lower()
+        if handle_command(command, settings_file):
+            break
+
+    if command == 'stack':
+        print(Fore.CYAN + "Stacking started." + Style.RESET_ALL)
 
     workdir = setup_directories()
+
     if os.path.isdir(os.path.join(workdir, "calibrated")):
         check_directories(workdir)
 
@@ -231,7 +295,6 @@ def main():
                 lines = settings.readlines()
                 final_path = lines[0].strip()
                 bit_depth = lines[1].strip().replace('_bits', '')
-
 
             app = Siril(siril_exe=final_path)
             cmd = Wrapper(app)
@@ -271,55 +334,83 @@ def main():
 
                     if has_rgb_images:
                         if has_flats and has_biases and has_darks:
-
                             observer = start_watchdog(process_dir, 'pp')
-
                             cmd.calibrate('light', dark='dark_stacked', flat='pp_flat_stacked', cc='dark', cfa=True,
                                           equalize_cfa=True, debayer=True)
-
                             observer.stop()
                             observer.join()
 
                         elif has_flats and has_biases and not has_darks:
+                            observer = start_watchdog(process_dir, 'pp')
                             cmd.calibrate('light', flat='pp_flat_stacked', cfa=True, equalize_cfa=True, debayer=True)
-                            # cleanup(process_dir, 'light')
+                            observer.stop()
+                            observer.join()
+
                         elif has_flats and not has_biases and has_darks:
+                            observer = start_watchdog(process_dir, 'pp')
                             cmd.calibrate('light', flat='flat_stacked', dark='dark_stacked', cc='dark', cfa=True,
                                           equalize_cfa=True, debayer=True)
-                            # cleanup(process_dir, 'light')
+                            observer.stop()
+                            observer.join()
+
                         elif has_flats and not has_biases and not has_darks:
+                            observer = start_watchdog(process_dir, 'pp')
                             cmd.calibrate('light', flat='flat_stacked', cfa=True, equalize_cfa=True, debayer=True)
-                            # cleanup(process_dir, 'light')
+                            observer.stop()
+                            observer.join()
+
                         elif not has_flats and not has_biases and has_darks:
+                            observer = start_watchdog(process_dir, 'pp')
                             cmd.calibrate('light', dark='dark_stacked', cc='dark', cfa=True, equalize_cfa=True,
                                           debayer=True)
-                            # cleanup(process_dir, 'light')
+                            observer.stop()
+                            observer.join()
+
                         elif not has_flats and not has_biases and not has_darks:
+                            observer = start_watchdog(process_dir, 'pp')
                             cmd.calibrate('light', cfa=True, equalize_cfa=True, debayer=True)
-                            # cleanup(process_dir, 'light')
+                            observer.stop()
+                            observer.join()
 
                     if has_mono_images:
                         if has_flats and has_biases and has_darks:
+                            observer = start_watchdog(process_dir, 'pp')
                             cmd.calibrate('light', dark='dark_stacked', flat='pp_flat_stacked', cc='dark', cfa=True,
                                           equalize_cfa=True, debayer=False)
-                            # cleanup(process_dir, 'light')
+                            observer.stop()
+                            observer.join()
+
                         elif has_flats and has_biases and not has_darks:
+                            observer = start_watchdog(process_dir, 'pp')
                             cmd.calibrate('light', flat='pp_flat_stacked', cfa=True, equalize_cfa=True, debayer=False)
-                            # cleanup(process_dir, 'light')
+                            observer.stop()
+                            observer.join()
+
                         elif has_flats and not has_biases and has_darks:
+                            observer = start_watchdog(process_dir, 'pp')
                             cmd.calibrate('light', flat='flat_stacked', dark='dark_stacked', cc='dark', cfa=True,
                                           equalize_cfa=True, debayer=False)
-                            # cleanup(process_dir, 'light')
+                            observer.stop()
+                            observer.join()
+
                         elif has_flats and not has_biases and not has_darks:
+                            observer = start_watchdog(process_dir, 'pp')
                             cmd.calibrate('light', flat='flat_stacked', cfa=True, equalize_cfa=True, debayer=False)
-                            # cleanup(process_dir, 'light')
+                            observer.stop()
+                            observer.join()
+
                         elif not has_flats and not has_biases and has_darks:
+                            observer = start_watchdog(process_dir, 'pp')
                             cmd.calibrate('light', dark='dark_stacked', cc='dark', cfa=True, equalize_cfa=True,
                                           debayer=False)
-                            # cleanup(process_dir, 'light')
-                        elif not has_flats and not has_biases and not has_darks:
-                            cmd.calibrate('light', cfa=True, equalize_cfa=True, debayer=False)
-                            # cleanup(process_dir, 'light')
+                            observer.stop()
+                            observer.join()
+
+                        # elif not has_flats and not has_biases and not has_darks:
+                        #     cmd.calibrate('light', cfa=True, equalize_cfa=True, debayer=False)
+                        #     cleanup(process_dir, 'light')
+                        # A mono image that does not have any calibration frames cannot be
+                        # calibrated, so it is immediately sent to calibrated and stacked
 
             calibrated_folder = os.path.join(workdir, 'calibrated')
 
@@ -349,12 +440,11 @@ def main():
                                 shutil.move(src_file, dest_file)
                                 print(Fore.GREEN + f'File {src_file} moved to {dest_file}' + Style.RESET_ALL)
 
+
             cmd.cd(calibrated_folder)
 
             observer = start_watchdog(calibrated_folder, 'r')
-
             cmd.register('pp_light')
-
             observer.stop()
             observer.join()
 
