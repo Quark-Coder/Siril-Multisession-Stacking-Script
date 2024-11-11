@@ -1,7 +1,7 @@
 @echo off
 rmdir /s /q build
 rmdir /s /q dist
-pyinstaller -F --name="AutoStackScript_1.0.1"--icon=D:\Coding\Python\AnotherpySirilScript\icon.ico --strip --upx-dir=D:\Programs\upx --optimize=2 ^
+pyinstaller -F --name="AutoStackScript_1.0.1" --icon=D:\Coding\Python\AnotherpySirilScript\icon.ico --strip --upx-dir=D:\Programs\upx --optimize=2 ^
 --exclude-module=ipython ^
 --exclude-module=backcall ^
 --exclude-module=decorator ^

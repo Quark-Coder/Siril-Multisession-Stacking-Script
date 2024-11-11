@@ -104,7 +104,7 @@ def cleanup(directory, prefix):
             os.remove(os.path.join(directory, file))
         if prefix == 'all':
             print(Fore.GREEN + "CLEANING " + file + Style.RESET_ALL)
-            os.remove(os.path.join(directory, file))
+            os.remove(os.path.join(directory, file)) # vulnerable place
 
 
 def batch_cleanup(alt_prefix, file_path):
@@ -185,12 +185,6 @@ def check_directories(workdir):
                                     elif len(data.shape) == 2:
                                         global has_mono_images
                                         has_mono_images = True
-                                    if has_rgb_images and has_mono_images:
-                                        print(
-                                            Fore.RED + "Error: Both RGB and Monochrome images detected in lights "
-                                                       "folders." + Style.RESET_ALL)
-                                        os.system("pause")
-                                        exit()
                             elif file.endswith(('.raw', '.nef', '.cr2', '.cr3', '.arw')):
                                 with rawpy.imread(file_path):
                                     has_rgb_images = True
@@ -222,11 +216,18 @@ def check_directories(workdir):
         os.system("pause")
         exit()
 
+    if has_rgb_images and has_mono_images:
+        print(
+            Fore.RED + "Error: Both RGB and Monochrome images detected in lights "
+                       "folders." + Style.RESET_ALL)
+        os.system("pause")
+        exit()
+
     if has_rgb_images:
         print(Fore.RED + "R" + Fore.GREEN + "G" + Fore.BLUE + "B" + Fore.WHITE + " images detected." + Style.RESET_ALL)
+
     if has_mono_images:
         print(Back.WHITE + Fore.BLACK + "Monochrome images detected." + Style.RESET_ALL)
-
 
 def main():
     dir_path = os.path.join(os.environ['APPDATA'], 'multisession-script')
@@ -250,7 +251,7 @@ def main():
             if not path:
                 print(Fore.RED + "No Siril executable selected. Exiting..." + Style.RESET_ALL)
                 os.system("pause")
-                break
+                exit()
             if "Siril.exe" in path or "siril.exe" in path:
                 bits_select = input(Fore.YELLOW + "Use 16 or 32 bits processing? 32 recommended \n"
                                                   "Choose the first one if you have less space (16/32): "
