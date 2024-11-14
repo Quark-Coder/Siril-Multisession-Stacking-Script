@@ -162,7 +162,7 @@ class ImageProcessingService:
         stacked = self._image_processor.stack_images(
             frames,
             output_path=work_dir / "stacked.fit",
-            method='sigma_clip',
+            method='rej',
             sigma_low=2.0,
             sigma_high=2.0,
             normalize=True

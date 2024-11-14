@@ -73,11 +73,11 @@ class SirilWrapper(ImageProcessor):
             }
             
             # Выполняем стекинг
-            prefix = images[0].name.split('_')[0]
+            prefix = images[0].directory.name
             self.cmd.stack(prefix, **stack_params)
             
             # Создаем объект Image для результата
-            result_path = output_path / f"{prefix}_stacked.{IMAGE_EXTENSION}"
+            result_path = output_path / f"{prefix}_stacked.fit"
             if result_path.exists():
                 return Image(file_path=result_path)
                 

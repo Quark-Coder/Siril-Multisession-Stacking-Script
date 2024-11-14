@@ -94,7 +94,7 @@ def validate_stacking_parameters(
     Returns:
         bool: True если параметры валидны
     """
-    valid_methods = {'average', 'median', 'sigma_clip'}
+    valid_methods = {'average', 'median', 'rej'}
     
     return (
         method in valid_methods
