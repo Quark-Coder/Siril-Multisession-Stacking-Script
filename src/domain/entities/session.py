@@ -4,7 +4,7 @@ from typing import Optional, List
 
 from src.domain.entities.calibration_frames import CalibrationFrameLibrary
 from src.domain.entities.image import Image
-from config.settings import FOLDER_NAMES
+from config.settings import FOLDER_NAMES, SUPPORTED_EXTENSIONS
 
 
 @dataclass
@@ -33,15 +33,17 @@ class Session:
         
         # Загружаем световые кадры при инициализации
         if self.lights_directory.exists():
-            for file_path in self.lights_directory.glob('*.fit*'):  # поддержка .fit и .fits
-                image = Image(file_path)
-                self.add_light_frame(image)
+            for ext in SUPPORTED_EXTENSIONS:
+                for file_path in self.lights_directory.glob(f'*{ext}'):
+                    image = Image(file_path)
+                    self.add_light_frame(image)
         
         # Загружаем калиброванные кадры при инициализации
         if self.process_directory.exists():
-            for file_path in self.process_directory.glob('*.fit*'):
-                image = Image(file_path)
-                self.add_calibrated_frame(image)
+            for ext in SUPPORTED_EXTENSIONS:
+                for file_path in self.process_directory.glob(f'*{ext}'):
+                    image = Image(file_path)
+                    self.add_calibrated_frame(image)
         
     @property
     def light_frames(self) -> List[Image]:
