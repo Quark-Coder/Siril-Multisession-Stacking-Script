@@ -13,7 +13,7 @@ from src.domain.entities.calibration_frames import CalibrationFrameLibrary
 from src.application.services.image_processing_service import ImageProcessingService
 from src.infrastructure.siril.siril_wrapper import SirilWrapper
 from src.infrastructure.file_system.file_manager import FileSystemManager
-from src.infrastructure.image_processing.image_processor import ImageProcessor
+from src.infrastructure.image_processing.image_processor import SirilImageProcessor
 from src.infrastructure.persistence.settings_repository import SettingsRepository
 from src.utils.validators import validate_path, validate_session_directory
 from src.utils.logging import get_logger
@@ -27,7 +27,7 @@ def init_services():
     settings = settings_repo.load_settings()
     
     file_manager = FileSystemManager()
-    image_processor = ImageProcessor()
+    image_processor = SirilImageProcessor()
     siril_wrapper = SirilWrapper(settings.get('siril_path') if settings else None)
     
     return ImageProcessingService(image_processor, file_manager, siril_wrapper)
