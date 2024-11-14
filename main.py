@@ -42,7 +42,7 @@ async def init_app():
     return True
 
 
-@click.command()
+@cli.command()
 @click.option('--interactive', '-i', is_flag=True, help='Запустить в интерактивном режиме')
 def main(interactive):
     """
