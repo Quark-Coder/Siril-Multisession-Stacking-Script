@@ -77,8 +77,12 @@ class SirilWrapper(ImageProcessor):
 
             if prefix == "biases":
                 prefix = "bias"
-            else:
-                prefix = prefix[:-2]
+            elif prefix == "darks":
+                prefix = "dark"
+            elif prefix == "flats":
+                prefix = "flat"
+            elif prefix == "lights":
+                prefix = "light"
 
             self.cmd.stack(prefix, **stack_params)
             
