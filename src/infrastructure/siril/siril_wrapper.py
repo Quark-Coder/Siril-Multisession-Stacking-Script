@@ -74,6 +74,12 @@ class SirilWrapper(ImageProcessor):
             
             # Выполняем стекинг
             prefix = images[0].directory.name
+
+            if prefix == "biases":
+                prefix = "bias"
+            else:
+                prefix = prefix[:-2]
+
             self.cmd.stack(prefix, **stack_params)
             
             # Создаем объект Image для результата
