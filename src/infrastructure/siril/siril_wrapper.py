@@ -84,6 +84,7 @@ class SirilWrapper(ImageProcessor):
             elif prefix == "lights":
                 prefix = "light"
 
+            self.cmd.cd("../process")
             self.cmd.stack(prefix, **stack_params)
             
             # Создаем объект Image для результата
