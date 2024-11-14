@@ -31,6 +31,18 @@ class Session:
         self._light_frames: List[Image] = []
         self._calibrated_frames: List[Image] = []
         
+        # Загружаем световые кадры при инициализации
+        if self.lights_directory.exists():
+            for file_path in self.lights_directory.glob('*.fit*'):  # поддержка .fit и .fits
+                image = Image(file_path)
+                self.add_light_frame(image)
+        
+        # Загружаем калиброванные кадры при инициализации
+        if self.process_directory.exists():
+            for file_path in self.process_directory.glob('*.fit*'):
+                image = Image(file_path)
+                self.add_calibrated_frame(image)
+        
     @property
     def light_frames(self) -> List[Image]:
         """Получить список световых кадров"""
