@@ -43,7 +43,10 @@ class ConsoleUI:
             if must_exist and not path.exists():
                 click.echo("Указанный путь не существует. Попробуйте снова или введите 'отмена'")
                 continue
-                
+
+            if not must_exist and len(path_str) == 0:
+                return None
+            
             return path
             
     def get_session_metadata(self) -> SessionMetadata:
