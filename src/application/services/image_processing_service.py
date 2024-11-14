@@ -3,7 +3,7 @@ from pathlib import Path
 
 from src.domain.entities.image import Image
 from src.domain.entities.session import Session
-from src.domain.entities.calibration_frames import CalibrationFrameLibrary, CalibrationFrameType
+from src.domain.entities.calibration_frames import CalibrationFrameLibrary, CalibrationFrameType, CalibrationFrameSet
 from src.domain.interfaces.image_processor import ImageProcessor
 from src.domain.interfaces.file_manager import FileManager
 from src.infrastructure.siril.siril_wrapper import SirilWrapper
@@ -31,44 +31,45 @@ class ImageProcessingService:
         """
         Обработка световых кадров с применением калибровочных кадров
         """
-        # Создаём рабочую директорию для сессии
-        work_dir = self._file_manager.create_session_directory(f"processing_{session.name}")
-        
         try:
-            # Получаем световые кадры
-            light_frames = self._file_manager.get_light_frames(session.light_frames_dir)
-            if not light_frames:
+            # Создаём рабочую директорию для сессии
+            self._file_manager.ensure_directory(session.process_directory)
+            
+            # Проверяем наличие световых кадров
+            if not session.light_frames:
                 logger.error("Не найдены световые кадры для обработки")
                 return []
 
             # Применяем калибровку если есть библиотека калибровочных кадров
             if calibration_library and self._has_valid_calibration(calibration_library):
                 processed_frames = await self._apply_calibration(
-                    light_frames,
+                    session.light_frames,
                     calibration_library,
-                    work_dir,
-                    session.exposure_time,
-                    session.temperature,
-                    session.gain
+                    session.process_directory,
+                    session.metadata.exposure_time,
+                    session.metadata.temperature,
+                    session.metadata.gain
                 )
             else:
-                processed_frames = light_frames
+                processed_frames = session.light_frames
             
             # Стекинг и пост-обработка
-            stacked_image = await self._stack_images(processed_frames, work_dir)
+            stacked_image = await self._stack_images(processed_frames, session.process_directory)
             final_image = await self._post_process(stacked_image)
             
             # Сохраняем результат
             output_path = self._file_manager.save_calibrated_light(
                 final_image,
-                work_dir / "result"
+                session.process_directory
             )
+            result_image = Image(file_path=output_path)
+            session.add_calibrated_frame(result_image)
             
-            return [Image(file_path=output_path)]
+            return [result_image]
             
-        finally:
-            # Очищаем временные файлы
-            self._file_manager.cleanup_temporary_files(work_dir)
+        except Exception as e:
+            logger.error(f"Ошибка при обработке кадров: {str(e)}")
+            return []
 
     def _has_valid_calibration(self, library: CalibrationFrameLibrary) -> bool:
         """Проверяет наличие необходимых калибровочных кадров"""
@@ -106,23 +107,26 @@ class ImageProcessingService:
         )
         
         # Получаем или создаём мастер-кадры
-        bias_frames = self._prepare_calibration_frames(
+        bias_frames = self._get_calibration_frames(
             library.bias_frames,
-            bias_dir
+            bias_dir,
+            CalibrationFrameType.BIAS
         )
         
-        dark_frames = self._prepare_calibration_frames(
+        dark_frames = self._get_calibration_frames(
             library.dark_frames,
-            dark_dir
+            dark_dir,
+            CalibrationFrameType.DARK
         )
         
-        flat_frames = self._prepare_calibration_frames(
+        flat_frames = self._get_calibration_frames(
             library.flat_frames,
-            flat_dir
+            flat_dir,
+            CalibrationFrameType.FLAT
         )
         
         # Применяем калибровку через Siril
-        calibrated_images = await self._siril_wrapper.calibrate_lights(
+        calibrated_paths = await self._siril_wrapper.calibrate_lights(
             [img.file_path for img in light_frames],
             [img.file_path for img in dark_frames],
             [img.file_path for img in flat_frames],
@@ -130,21 +134,24 @@ class ImageProcessingService:
             work_dir
         )
         
-        return [Image(file_path=path) for path in calibrated_images]
+        return [Image(file_path=path) for path in calibrated_paths]
 
-    def _prepare_calibration_frames(
+    def _get_calibration_frames(
         self,
-        frame_set,
-        target_dir: Path
+        frame_set: CalibrationFrameSet,
+        target_dir: Path,
+        frame_type: CalibrationFrameType
     ) -> List[Image]:
-        """Подготовка калибровочных кадров определённого типа"""
+        """Получение калибровочных кадров определённого типа"""
         if frame_set.master_frame:
-            return [Image(file_path=frame_set.master_frame)]
+            master_path = self._file_manager.save_master_frame(
+                Image(file_path=frame_set.master_frame),
+                frame_type,
+                target_dir
+            )
+            return [Image(file_path=master_path)]
         
-        return self._file_manager.get_calibration_frames(
-            target_dir,
-            frame_set.frame_type
-        )
+        return self._file_manager.get_calibration_frames(target_dir, frame_type)
 
     async def _stack_images(
         self,

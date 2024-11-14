@@ -146,3 +146,17 @@ class FileSystemManager(FileManager):
         except Exception as e:
             logger.error(f"Ошибка при получении информации о сессии: {e}")
             return {}
+
+    def ensure_directory(self, directory: Path) -> None:
+        """
+        Создает директорию, если она не существует
+        
+        Args:
+            directory: Путь к директории
+        """
+        try:
+            directory.mkdir(parents=True, exist_ok=True)
+            logger.info(f"Создана директория: {directory}")
+        except Exception as e:
+            logger.error(f"Ошибка при создании директории: {e}")
+            raise

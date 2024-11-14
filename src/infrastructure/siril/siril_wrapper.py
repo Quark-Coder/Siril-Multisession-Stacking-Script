@@ -223,3 +223,69 @@ class SirilWrapper(ImageProcessor):
         except Exception as e:
             logger.error(f"Ошибка при нормализации изображения: {e}")
             return None
+
+    async def calibrate_lights(
+        self,
+        light_paths: List[Path],
+        dark_paths: List[Path],
+        flat_paths: List[Path],
+        bias_paths: List[Path],
+        work_dir: Path
+    ) -> List[Path]:
+        """
+        Калибрует набор световых кадров используя наборы калибровочных кадров
+        
+        Args:
+            light_paths: Пути к световым кадрам
+            dark_paths: Пути к темновым кадрам
+            flat_paths: Пути к плоским кадрам
+            bias_paths: Пути к bias кадрам
+            work_dir: Рабочая директория
+            
+        Returns:
+            List[Path]: Список путей к откалиброванным кадрам
+        """
+        try:
+            self.cmd.cd(str(work_dir))
+            
+            calibration_params = {
+                'cfa': CALIBRATION_SETTINGS['cfa'],
+                'equalize_cfa': CALIBRATION_SETTINGS['equalize_cfa'],
+                'debayer': CALIBRATION_SETTINGS['debayer']
+            }
+            
+            # Создаем мастер-кадры
+            if bias_paths:
+                self.cmd.stack('bias', output='master_bias')
+                calibration_params['bias'] = 'master_bias'
+                
+            if dark_paths:
+                self.cmd.stack('dark', output='master_dark')
+                calibration_params['dark'] = 'master_dark'
+                
+            if flat_paths:
+                self.cmd.stack('flat', output='master_flat')
+                calibration_params['flat'] = 'master_flat'
+            
+            # Калибруем световые кадры
+            prefix = 'light'
+            self.cmd.calibrate(prefix, **calibration_params)
+            
+            # Собираем откалиброванные кадры
+            calibrated_paths = []
+            for light_path in light_paths:
+                cal_path = work_dir / f"pp_{light_path.name}"
+                if cal_path.exists():
+                    calibrated_paths.append(cal_path)
+                else:
+                    logger.warning(f"Откалиброванный кадр не найден: {cal_path}")
+            
+            if not calibrated_paths:
+                logger.error("Не найдено ни одного откалиброванного кадра")
+                return []
+                
+            return calibrated_paths
+            
+        except Exception as e:
+            logger.error(f"Ошибка при калибровке световых кадров: {e}")
+            return []

@@ -127,3 +127,13 @@ class FileManager(ABC):
             Dict: Словарь с информацией о сессии
         """
         pass
+        
+    @abstractmethod
+    def ensure_directory(self, directory: Path) -> None:
+        """
+        Создает директорию, если она не существует
+        
+        Args:
+            directory: Путь к директории
+        """
+        pass
