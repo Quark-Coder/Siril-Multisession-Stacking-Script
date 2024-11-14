@@ -58,7 +58,7 @@ def process_session(session_path: str, calibration_dir: Optional[str], output_di
         # Создание сессии
         metadata = SessionMetadata(
             name=session_path.name,
-            target_name=session_path.name,
+            target=session_path.name,
             date=None
         )
         session = Session(session_path, metadata)
