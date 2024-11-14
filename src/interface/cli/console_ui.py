@@ -35,7 +35,7 @@ class ConsoleUI:
     def get_path_input(self, prompt: str, must_exist: bool = True) -> Optional[Path]:
         """Получение пути от пользователя"""
         while True:
-            path_str = click.prompt(prompt, type=str)
+            path_str = click.prompt(prompt, type=str, default='')
             if path_str.lower() == 'отмена':
                 return None
                 
