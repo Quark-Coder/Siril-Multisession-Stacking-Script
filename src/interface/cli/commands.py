@@ -27,8 +27,8 @@ def init_services():
     settings = settings_repo.load_settings()
     
     file_manager = FileSystemManager()
-    image_processor = SirilImageProcessor()
     siril_wrapper = SirilWrapper(settings.get('siril_path') if settings else None)
+    image_processor = SirilImageProcessor(siril_wrapper)
     
     return ImageProcessingService(image_processor, file_manager, siril_wrapper)
 
