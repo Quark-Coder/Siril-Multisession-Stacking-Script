@@ -84,8 +84,10 @@ class SirilWrapper(ImageProcessor):
             elif prefix == "lights":
                 prefix = "light"
 
+            self.cmd.convert(prefix, out="../process")
+
             self.cmd.cd("../process")
-            
+
             self.cmd.register(prefix)
             prefix = f"r_{prefix}"
 
