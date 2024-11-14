@@ -28,19 +28,22 @@ class ProcessSessionUseCase:
             Обработанное финальное изображение или None в случае ошибки
         """
         try:
-            if not session.light_frames_dir:
-                logger.error("В сессии не указана директория со световыми кадрами")
+            if not session.validate():
+                logger.error("Сессия не прошла валидацию")
                 return None
 
             # Обрабатываем световые кадры
             processed_frames = await self._image_processing_service.process_light_frames(
                 session,
-                calibration_library
+                calibration_library or (session.calibration_library if session.has_calibration_frames() else None)
             )
             
             if not processed_frames:
                 logger.error("Не удалось обработать световые кадры")
                 return None
+                
+            # Очищаем временные файлы после обработки
+            session.cleanup()
                 
             return processed_frames[0] if processed_frames else None
 
