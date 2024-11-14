@@ -65,7 +65,7 @@ def process_session(session_path: str, calibration_dir: Optional[str], output_di
         
         # Загрузка калибровочной библиотеки
         calibration_library = None
-        if calibration_dir:
+        if calibration_dir is not None:
             calibration_library = CalibrationFrameLibrary(Path(calibration_dir))
         
         # Создание выходной директории
