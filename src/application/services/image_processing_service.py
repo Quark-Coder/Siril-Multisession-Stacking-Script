@@ -161,7 +161,7 @@ class ImageProcessingService:
         """Стекинг обработанных кадров"""
         stacked = self._image_processor.stack_images(
             frames,
-            output_path=work_dir / "stacked.fit",
+            output_path=work_dir,
             method='rej',
             sigma_low=2.0,
             sigma_high=2.0,
