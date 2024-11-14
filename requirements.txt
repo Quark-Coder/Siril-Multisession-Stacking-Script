@@ -1,0 +1,14 @@
+altgraph==0.17.4
+astropy==6.1.5
+astropy-iers-data==0.2024.11.4.0.33.34
+click==8.1.7
+colorama==0.4.6
+numpy==2.1.3
+packaging==24.2
+pefile==2023.2.7
+pyerfa==2.0.1.4
+# pysiril needed to be installed manually
+PyYAML==6.0.2
+rawpy==0.23.2
+setuptools==75.3.0
+watchdog==6.0.0
