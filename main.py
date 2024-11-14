@@ -43,23 +43,17 @@ async def init_app():
 
 
 @cli.command()
-@click.option('--interactive', '-i', is_flag=True, help='Запустить в интерактивном режиме')
-def main(interactive):
+def start_cli():
     """
-    Точка входа в приложение
+    Запуск CLI интерфейса
     """
     try:
         # Инициализация приложения
         if not asyncio.run(init_app()):
             click.echo("Ошибка инициализации приложения. Проверьте наличие Siril.")
             return
-        
-        if interactive:
-            # Запуск интерактивного режима
-            run_console_ui()
-        else:
-            # Запуск CLI интерфейса
-            cli()
+
+        run_console_ui()
         
     except Exception as e:
         click.echo(f"Критическая ошибка: {str(e)}")
@@ -67,4 +61,4 @@ def main(interactive):
 
 
 if __name__ == "__main__":
-    main()
+    cli()
