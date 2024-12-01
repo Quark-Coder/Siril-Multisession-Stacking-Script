@@ -12,11 +12,4 @@ The script creates the required number of folders with sessions and the necessar
 ## **Save images before using it!** 
 Immediately report any bug or idea that you would like to fix or add to this project.
 
-## Requirements
-- colorama==0.4.6
-- pysiril==0.0.15
-- astropy==6.1.1
-- rawpy==0.22.0
-- watchdog==4.0.1
-
 ![image](https://github.com/user-attachments/assets/2f534f3b-cb29-4539-9570-87c14ac0fe39)
