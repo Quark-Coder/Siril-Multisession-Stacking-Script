@@ -126,10 +126,25 @@ def setup_directories():
         exit()
 
     if not os.path.isdir(workdir + "/calibrated"):
-        session_count = int(input(Fore.YELLOW + "Enter the number of sessions: " + Style.RESET_ALL))
-        use_darks = input(Fore.YELLOW + "Use dark frames? (y/n): " + Style.RESET_ALL).lower() == 'y'
-        use_flats = input(Fore.YELLOW + "Use flat frames? (y/n): " + Style.RESET_ALL).lower() == 'y'
-        use_bias = input(Fore.YELLOW + "Use bias frames? (y/n): " + Style.RESET_ALL).lower() == 'y'
+        while True:
+            try:
+                session_count = int(input(Fore.YELLOW + "Enter the number of sessions: " + Style.RESET_ALL))
+                if session_count >= 0:
+                    break
+                print(Fore.RED + "The number must be non-negative." + Style.RESET_ALL)
+            except ValueError:
+                print(Fore.RED + "Invalid input. Please enter a number." + Style.RESET_ALL)
+
+        def get_yes_no(prompt):
+            while True:
+                choice = input(Fore.YELLOW + prompt + " (y/n): " + Style.RESET_ALL).lower()
+                if choice in {'y', 'n'}:
+                    return choice == 'y'
+                print(Fore.RED + "Invalid input. Please enter 'y' or 'n'." + Style.RESET_ALL)
+
+        use_darks = get_yes_no("Use dark frames?")
+        use_flats = get_yes_no("Use flat frames?")
+        use_bias = get_yes_no("Use bias frames?")
 
         if not os.path.isdir(workdir + "/session_1"):
             for session_num in range(1, session_count + 1):
@@ -173,7 +188,7 @@ def check_directories(workdir):
                 folder_empty = True
             else:
                 for file in os.listdir(lights_folder_path):
-                    if file.endswith(('.fit', '.FIT', '.fits', '.FITS', '.raw', '.nef', '.cr2', '.cr3', '.arw')):
+                    if file.lower().endswith(('.fit', '.fits', '.raw', '.nef', '.cr2', '.cr3', '.arw')):
                         file_path = os.path.join(lights_folder_path, file)
                         try:
                             if file.endswith(('.fit', '.FIT', '.fits', '.FITS')):
@@ -185,7 +200,7 @@ def check_directories(workdir):
                                     elif len(data.shape) == 2:
                                         global has_mono_images
                                         has_mono_images = True
-                            elif file.endswith(('.raw', '.nef', '.cr2', '.cr3', '.arw')):
+                            elif file.lower().endswith(('.raw', '.nef', '.cr2', '.cr3', '.arw')):
                                 with rawpy.imread(file_path):
                                     has_rgb_images = True
                         except Exception as e:
@@ -333,85 +348,59 @@ def main():
                     cmd.convert('light', out=process_dir)
                     cmd.cd(process_dir)
 
+                    observer = start_watchdog(process_dir, 'pp')
+
                     if has_rgb_images:
                         if has_flats and has_biases and has_darks:
-                            observer = start_watchdog(process_dir, 'pp')
                             cmd.calibrate('light', dark='dark_stacked', flat='pp_flat_stacked', cc='dark', cfa=True,
                                           equalize_cfa=True, debayer=True)
-                            observer.stop()
-                            observer.join()
 
                         elif has_flats and has_biases and not has_darks:
-                            observer = start_watchdog(process_dir, 'pp')
                             cmd.calibrate('light', flat='pp_flat_stacked', cfa=True, equalize_cfa=True, debayer=True)
-                            observer.stop()
-                            observer.join()
 
                         elif has_flats and not has_biases and has_darks:
-                            observer = start_watchdog(process_dir, 'pp')
                             cmd.calibrate('light', flat='flat_stacked', dark='dark_stacked', cc='dark', cfa=True,
                                           equalize_cfa=True, debayer=True)
-                            observer.stop()
-                            observer.join()
 
                         elif has_flats and not has_biases and not has_darks:
-                            observer = start_watchdog(process_dir, 'pp')
                             cmd.calibrate('light', flat='flat_stacked', cfa=True, equalize_cfa=True, debayer=True)
-                            observer.stop()
-                            observer.join()
 
                         elif not has_flats and not has_biases and has_darks:
-                            observer = start_watchdog(process_dir, 'pp')
                             cmd.calibrate('light', dark='dark_stacked', cc='dark', cfa=True, equalize_cfa=True,
                                           debayer=True)
-                            observer.stop()
-                            observer.join()
 
                         elif not has_flats and not has_biases and not has_darks:
-                            observer = start_watchdog(process_dir, 'pp')
                             cmd.calibrate('light', cfa=True, equalize_cfa=True, debayer=True)
-                            observer.stop()
-                            observer.join()
 
                     if has_mono_images:
                         if has_flats and has_biases and has_darks:
-                            observer = start_watchdog(process_dir, 'pp')
                             cmd.calibrate('light', dark='dark_stacked', flat='pp_flat_stacked', cc='dark', cfa=True,
                                           equalize_cfa=True, debayer=False)
-                            observer.stop()
-                            observer.join()
 
                         elif has_flats and has_biases and not has_darks:
-                            observer = start_watchdog(process_dir, 'pp')
                             cmd.calibrate('light', flat='pp_flat_stacked', cfa=True, equalize_cfa=True, debayer=False)
-                            observer.stop()
-                            observer.join()
 
                         elif has_flats and not has_biases and has_darks:
-                            observer = start_watchdog(process_dir, 'pp')
                             cmd.calibrate('light', flat='flat_stacked', dark='dark_stacked', cc='dark', cfa=True,
                                           equalize_cfa=True, debayer=False)
-                            observer.stop()
-                            observer.join()
 
                         elif has_flats and not has_biases and not has_darks:
-                            observer = start_watchdog(process_dir, 'pp')
                             cmd.calibrate('light', flat='flat_stacked', cfa=True, equalize_cfa=True, debayer=False)
-                            observer.stop()
-                            observer.join()
 
                         elif not has_flats and not has_biases and has_darks:
-                            observer = start_watchdog(process_dir, 'pp')
                             cmd.calibrate('light', dark='dark_stacked', cc='dark', cfa=True, equalize_cfa=True,
                                           debayer=False)
-                            observer.stop()
-                            observer.join()
 
                         # elif not has_flats and not has_biases and not has_darks:
                         #     cmd.calibrate('light', cfa=True, equalize_cfa=True, debayer=False)
                         #     cleanup(process_dir, 'light')
                         # A mono image that does not have any calibration frames cannot be
                         # calibrated, so it is immediately sent to calibrated and stacked
+
+                    observer.stop()
+                    observer.join()
+
+
 
             calibrated_folder = os.path.join(workdir, 'calibrated')
 
