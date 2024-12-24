@@ -369,6 +369,13 @@ def main():
                             cmd.calibrate('light', dark='dark_stacked', cc='dark', cfa=True, equalize_cfa=True,
                                           debayer=True)
 
+                        elif not has_flats and has_biases and has_darks:
+                            cmd.calibrate('light', dark='dark_stacked', cc='dark', cfa=True, equalize_cfa=True,
+                                          debayer=True)
+                            print(
+                                Fore.RED + "Biases without flats are not supported for now. Skipping bias." + Style.RESET_ALL)
+
+
                         elif not has_flats and not has_biases and not has_darks:
                             cmd.calibrate('light', cfa=True, equalize_cfa=True, debayer=True)
 
