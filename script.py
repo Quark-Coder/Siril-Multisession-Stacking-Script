@@ -8,13 +8,23 @@ from pysiril.siril import *
 from pysiril.wrapper import *
 from tkinter.filedialog import askopenfilename
 from colorama import init as colorama_init
-from colorama import Fore
-from colorama import Back
-from colorama import Style
+from colorama import Fore, Back, Style
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
+from utils import log_error_to_file, has_spaces, calculate_integration_time
+
 colorama_init()
+
+HAS_RGB_IMAGES = False
+HAS_MONO_IMAGES = False
+
+DEFAUT_SIRIL_PATH = "C:\\Program Files\\Siril\\bin\\siril.exe"
+
+STACKING_TYPE = "rej"      # stack type (sum|min|max|med|median|rej|mean)
+SIGMA_LOW = 3              # low threshold for sigma clipping rejection
+SIGMA_HIGH = 3             # high threshold for sigma clipping rejection
+NORMALIZATION = "addscale" # value are: no, add, addscale, mul or mulscale
 
 class CleanupHandler(FileSystemEventHandler):
     def __init__(self, directory, alt_prefix):
@@ -34,6 +44,12 @@ def start_watchdog(directory, alt_prefix):
     observer.start()
     return observer
 
+def master_dark(cmd, dark_dir, process_dir):
+    cmd.cd(dark_dir)
+    cmd.convert('dark', out=process_dir)
+    cmd.cd(process_dir)
+    cmd.stack('dark', type='rej', sigma_low=3, sigma_high=3, norm='no')
+    cleanup(process_dir, 'dark')
 
 def master_bias(cmd, bias_dir, process_dir):
     cmd.cd(bias_dir)
@@ -55,44 +71,52 @@ def master_flat(cmd, flat_dir, process_dir, use_bias):
         cmd.stack('flat', type='rej', sigma_low=3, sigma_high=3, norm='mul')
     cleanup(process_dir, 'flat')
 
+def handle_console(settings_file):
+    print(Fore.BLUE + "Quark-Coder multi-session processing script" + Style.RESET_ALL)
+    print(Fore.RED + "THIS SCRIPT IS UNDER TESTING. SAVE THE IMAGES BEFORE USING THE SCRIPT!" + Style.RESET_ALL)
+    print(" ")
 
-def display_commands(main=False):
-    if main:
-        print("List of main processing commands:")
-        print("  dso - for deep sky stacking")
+    def display_commands(main=False):
+        if main:
+            print("List of main processing commands:")
+            print("  dso - for deep sky stacking")
+            print(" ")
+        print("Script related commands:")
+        print("  reset - for resetting the settings.")
+        print("  info - how script works.")
+
+    def handle_command(command):
+        if command == 'dso':
+            print(Fore.CYAN + "Deep sky object stacking selected." + Style.RESET_ALL)
+            return True
+        elif command == 'reset':
+            print(Fore.RED + "Resetting all settings..." + Style.RESET_ALL)
+            os.remove(settings_file)
+            os.system("pause")
+            exit()
+        elif command == 'info':
+            print("1. The script creates empty session folders, inside of which are all the frames that you have selected.")
+            print("2. The script calibrates light frames from each session and moves them to the calibrated folder.")
+            print("3. The script performs registration and stacking of calibrated light frames in the calibrated folder.")
+            print("4. The script exports to the main stacked image folder and deletes all temporary files.")
+            print(" ")
+        return False
+
+    command = ""
+    while command not in ['dso', 'reset', 'stack']:
+        if not os.path.isdir(os.path.join(os.getcwd(), "calibrated")):
+            display_commands(main=True)
+        else:
+            display_commands()
+            print("  stack - for stacking")
+
         print(" ")
-    print("Script related commands:")
-    print("  reset - for resetting the settings.")
-    print("  info - how script works.")
+        command = input(Fore.YELLOW + "Write a command: " + Style.RESET_ALL).strip().lower()
+        if handle_command(command):
+            break
 
-
-def handle_command(command, settings_file):
-    if command == 'dso':
-        print(Fore.CYAN + "Deep sky object stacking selected." + Style.RESET_ALL)
-        return True
-    elif command == 'reset':
-        print(Fore.RED + "Resetting all settings..." + Style.RESET_ALL)
-        os.remove(settings_file)
-        os.system("pause")
-        exit()
-    elif command == 'info':
-        print("1. The script creates empty session folders, inside of which are all the frames that you have selected.")
-        print("2. The script calibrates light frames from each session and moves them to the calibrated folder.")
-        print("3. The script performs registration and stacking of calibrated light frames in the calibrated folder.")
-        print("4. The script exports to the main stacked image folder and deletes all temporary files.")
-        print(" ")
-    return False
-
-def master_dark(cmd, dark_dir, process_dir):
-    cmd.cd(dark_dir)
-    cmd.convert('dark', out=process_dir)
-    cmd.cd(process_dir)
-    cmd.stack('dark', type='rej', sigma_low=3, sigma_high=3, norm='no')
-    cleanup(process_dir, 'dark')
-
-
-def has_spaces(path):
-    return ' ' in path
+    if command == 'stack':
+        print(Fore.CYAN + "Stacking started." + Style.RESET_ALL)
 
 
 def cleanup(directory, prefix):
@@ -115,6 +139,71 @@ def batch_cleanup(alt_prefix, file_path):
     if not delete_path.endswith('.seq'):
         os.remove(delete_path)
 
+def move_to_calibrated_folder(workdir, calibrated_folder):
+    existing_files = os.listdir(calibrated_folder)
+    max_number = 0
+    for file_name in existing_files:
+        if file_name.startswith('pp_light') and file_name.endswith('.fit'):
+            number_str = file_name.split('_')[-1].split('.')[0]
+            try:
+                number = int(number_str)
+                if number > max_number:
+                    max_number = number
+            except ValueError:
+                continue
+
+    for session_folder in sorted(os.listdir(workdir)):
+        session_path = os.path.join(workdir, session_folder)
+        if os.path.isdir(session_path):
+            process_path = os.path.join(session_path, 'process')
+            if os.path.isdir(process_path):
+                for file_name in sorted(os.listdir(process_path)):
+                    if file_name.startswith('pp_light') and file_name.endswith('.fit'):
+                        src_file = os.path.join(process_path, file_name)
+                        max_number += 1
+                        new_file_name = f"pp_light_{max_number:05d}.fit"
+                        dest_file = os.path.join(calibrated_folder, new_file_name)
+                        shutil.move(src_file, dest_file)
+                        print(Fore.GREEN + f'File {src_file} moved to {dest_file}' + Style.RESET_ALL)
+
+def setup_settings():
+    dir_path = os.path.join(os.environ['APPDATA'], 'multisession-script')
+    if not os.path.exists(dir_path):
+        os.makedirs(dir_path)
+
+    settings_file = os.path.join(dir_path, "settings.txt")
+
+    if os.path.isfile(DEFAUT_SIRIL_PATH):
+        with open(settings_file, "w", encoding='utf-8') as settings:
+            settings.write(DEFAUT_SIRIL_PATH + "\n")
+        os.system('cls')
+
+    if not os.path.isfile(settings_file):
+        print(
+            Fore.RED + "No Siril.exe found in default location. Select Siril.exe in installed directory."
+            + Style.RESET_ALL)
+        while True:
+            path = askopenfilename(title='Select SiriL.exe')
+            if not path:
+                print(Fore.RED + "No Siril executable selected. Exiting..." + Style.RESET_ALL)
+                os.system("pause")
+                exit()
+            if "Siril.exe" in path or "siril.exe" in path:
+                bits_select = input(Fore.YELLOW + "Use 16 or 32 bits processing? 32 recommended \n"
+                                                  "Choose the first one if you have less space (16/32): "
+                                    + Style.RESET_ALL)
+
+                with open(settings_file, "w", encoding='utf-8') as settings:
+                    settings.write(path + "\n")
+                    settings.write(bits_select + "_bits")
+                os.system('cls')
+
+                break
+            else:
+                tkinter.messagebox.showerror(title="Error", message="This is not a Siril.exe or siril.exe")
+
+    return settings_file
+
 
 def setup_directories():
     workdir = os.getcwd()
@@ -129,9 +218,12 @@ def setup_directories():
         while True:
             try:
                 session_count = int(input(Fore.YELLOW + "Enter the number of sessions: " + Style.RESET_ALL))
-                if session_count >= 0:
+                if session_count > 0:
                     break
-                print(Fore.RED + "The number must be non-negative." + Style.RESET_ALL)
+                elif session_count == 0:
+                    print(Fore.RED + "Zero is not allowed. Please enter a positive number." + Style.RESET_ALL)
+                else:
+                    print(Fore.RED + "The number must be positive." + Style.RESET_ALL)
             except ValueError:
                 print(Fore.RED + "Invalid input. Please enter a number." + Style.RESET_ALL)
 
@@ -159,16 +251,11 @@ def setup_directories():
                 os.makedirs(os.path.join(session_dir, "lights"))
         os.makedirs(os.path.join(workdir, "calibrated"))
         print(Fore.RED + "Add files to folders!" + Style.RESET_ALL)
-        proceed = input(Fore.YELLOW + "Proceed? (y/n): " + Style.RESET_ALL).lower() == 'y'
+        proceed = get_yes_no("Proceed?")
 
         if not proceed:
             exit()
-
     return workdir
-
-
-has_rgb_images = False
-has_mono_images = False
 
 def check_directories(workdir):
     need_exit = False
@@ -195,14 +282,14 @@ def check_directories(workdir):
                                 with fits.open(file_path) as hdul:
                                     data = hdul[0].data
                                     if len(data.shape) == 3 and data.shape[0] == 3:
-                                        global has_rgb_images
-                                        has_rgb_images = True
+                                        global HAS_RGB_IMAGES
+                                        HAS_RGB_IMAGES = True
                                     elif len(data.shape) == 2:
-                                        global has_mono_images
-                                        has_mono_images = True
+                                        global HAS_MONO_IMAGES
+                                        HAS_MONO_IMAGES = True
                             elif file.lower().endswith(('.raw', '.nef', '.cr2', '.cr3', '.arw')):
                                 with rawpy.imread(file_path):
-                                    has_rgb_images = True
+                                    HAS_RGB_IMAGES = True
                         except Exception as e:
                             print(Fore.RED + f"Error reading {file}: {e}" + Style.RESET_ALL)
 
@@ -231,75 +318,24 @@ def check_directories(workdir):
         os.system("pause")
         exit()
 
-    if has_rgb_images and has_mono_images:
+    if HAS_RGB_IMAGES and HAS_MONO_IMAGES:
         print(
             Fore.RED + "Error: Both RGB and Monochrome images detected in lights "
                        "folders." + Style.RESET_ALL)
         os.system("pause")
         exit()
 
-    if has_rgb_images:
+    if HAS_RGB_IMAGES:
         print(Fore.RED + "R" + Fore.GREEN + "G" + Fore.BLUE + "B" + Fore.WHITE + " images detected." + Style.RESET_ALL)
 
-    if has_mono_images:
+    if HAS_MONO_IMAGES:
         print(Back.WHITE + Fore.BLACK + "Monochrome images detected." + Style.RESET_ALL)
 
 def main():
-    dir_path = os.path.join(os.environ['APPDATA'], 'multisession-script')
-    if not os.path.exists(dir_path):
-        os.makedirs(dir_path)
 
-    settings_file = os.path.join(dir_path, "settings.txt")
-    default_siril_path = "C:\\Program Files\\Siril\\bin\\siril.exe"
+    settings_file = setup_settings()
 
-    if os.path.isfile(default_siril_path):
-        with open(settings_file, "w", encoding='utf-8') as settings:
-            settings.write(default_siril_path + "\n")
-        os.system('cls')
-
-    if not os.path.isfile(settings_file):
-        print(
-            Fore.RED + "No SiriL.exe found in default location. Select SiriL.exe in installed directory."
-            + Style.RESET_ALL)
-        while True:
-            path = askopenfilename(title='Select SiriL.exe')
-            if not path:
-                print(Fore.RED + "No Siril executable selected. Exiting..." + Style.RESET_ALL)
-                os.system("pause")
-                exit()
-            if "Siril.exe" in path or "siril.exe" in path:
-                bits_select = input(Fore.YELLOW + "Use 16 or 32 bits processing? 32 recommended \n"
-                                                  "Choose the first one if you have less space (16/32): "
-                                    + Style.RESET_ALL)
-
-                with open(settings_file, "w", encoding='utf-8') as settings:
-                    settings.write(path + "\n")
-                    settings.write(bits_select + "_bits")
-                os.system('cls')
-
-                break
-            else:
-                tkinter.messagebox.showerror(title="Error", message="This is not a Siril.exe or siril.exe")
-
-    print(Fore.BLUE + "Quark-Coder multi-session processing script" + Style.RESET_ALL)
-    print(Fore.RED + "THIS SCRIPT IS UNDER TESTING. SAVE THE IMAGES BEFORE USING THE SCRIPT!" + Style.RESET_ALL)
-    print(" ")
-
-    command = ""
-    while command not in ['dso', 'reset', 'stack']:
-        if not os.path.isdir(os.path.join(os.getcwd(), "calibrated")):
-            display_commands(main=True)
-        else:
-            display_commands()
-            print("  stack - for stacking")
-
-        print(" ")
-        command = input(Fore.YELLOW + "Write a command: " + Style.RESET_ALL).strip().lower()
-        if handle_command(command, settings_file):
-            break
-
-    if command == 'stack':
-        print(Fore.CYAN + "Stacking started." + Style.RESET_ALL)
+    handle_console(settings_file)
 
     workdir = setup_directories()
 
@@ -350,7 +386,7 @@ def main():
 
                     observer = start_watchdog(process_dir, 'pp')
 
-                    if has_rgb_images:
+                    if HAS_RGB_IMAGES:
                         if has_flats and has_biases and has_darks:
                             cmd.calibrate('light', dark='dark_stacked', flat='pp_flat_stacked', cc='dark', cfa=True,
                                           equalize_cfa=True, debayer=True)
@@ -379,7 +415,7 @@ def main():
                         elif not has_flats and not has_biases and not has_darks:
                             cmd.calibrate('light', cfa=True, equalize_cfa=True, debayer=True)
 
-                    if has_mono_images:
+                    if HAS_MONO_IMAGES:
                         if has_flats and has_biases and has_darks:
                             cmd.calibrate('light', dark='dark_stacked', flat='pp_flat_stacked', cc='dark', cfa=True,
                                           equalize_cfa=True, debayer=False)
@@ -408,35 +444,9 @@ def main():
                     observer.join()
 
 
-
             calibrated_folder = os.path.join(workdir, 'calibrated')
 
-            existing_files = os.listdir(calibrated_folder)
-            max_number = 0
-            for file_name in existing_files:
-                if file_name.startswith('pp_light') and file_name.endswith('.fit'):
-                    number_str = file_name.split('_')[-1].split('.')[0]
-                    try:
-                        number = int(number_str)
-                        if number > max_number:
-                            max_number = number
-                    except ValueError:
-                        continue
-
-            for session_folder in sorted(os.listdir(workdir)):
-                session_path = os.path.join(workdir, session_folder)
-                if os.path.isdir(session_path):
-                    process_path = os.path.join(session_path, 'process')
-                    if os.path.isdir(process_path):
-                        for file_name in sorted(os.listdir(process_path)):
-                            if file_name.startswith('pp_light') and file_name.endswith('.fit'):
-                                src_file = os.path.join(process_path, file_name)
-                                max_number += 1
-                                new_file_name = f"pp_light_{max_number:05d}.fit"
-                                dest_file = os.path.join(calibrated_folder, new_file_name)
-                                shutil.move(src_file, dest_file)
-                                print(Fore.GREEN + f'File {src_file} moved to {dest_file}' + Style.RESET_ALL)
-
+            move_to_calibrated_folder(workdir, calibrated_folder)
 
             cmd.cd(calibrated_folder)
 
@@ -445,19 +455,8 @@ def main():
             observer.stop()
             observer.join()
 
-            total_exposure_time = 0.0
-            for fits_file in os.listdir(calibrated_folder):
-                if fits_file.endswith('.fits') and fits_file.startswith('r_pp_light') or fits_file.endswith(
-                        '.fit') and fits_file.startswith('r_pp_light'):
-                    file_path = os.path.join(calibrated_folder, fits_file)
-                    with fits.open(file_path) as hdul:
-                        hdr = hdul[0].header
-                        if 'EXPTIME' in hdr:
-                            total_exposure_time += hdr['EXPTIME']
-            total_exposure_time_int = int(total_exposure_time)
-
-            cmd.stack('r_pp_light', type='rej', sigma_low=3, sigma_high=3, norm='addscale', output_norm=True,
-                      rgb_equal=True, out='../' + 'result_' + str(total_exposure_time_int) + 's')
+            cmd.stack('r_pp_light', type=STACKING_TYPE, sigma_low=SIGMA_LOW, sigma_high=SIGMA_HIGH, norm=NORMALIZATION,
+                      output_norm=True, rgb_equal=True, out='../' + 'result_' + str(calculate_integration_time(calibrated_folder)) + 's')
 
             cleanup(calibrated_folder, 'all')
 
@@ -465,6 +464,7 @@ def main():
 
         except Exception as e:
             print(Fore.RED + f"\n**** ERROR *** {str(e)}\n" + Style.RESET_ALL)
+            log_error_to_file(e)
 
     os.system("pause")
 
